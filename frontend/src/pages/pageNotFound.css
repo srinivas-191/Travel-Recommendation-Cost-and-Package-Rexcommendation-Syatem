@@ -1,0 +1,7 @@
+.homeBtn{
+    transition: all .3s ease-in-out;
+}
+.homeBtn:hover{
+    background-color: lightgreen !important;
+    color: white !important;
+}

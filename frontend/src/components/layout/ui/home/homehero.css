@@ -1,0 +1,15 @@
+/* .homeHero {
+    background-image: url('./src/assets/HomeHeroBg.jpg');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center center;
+    height: 500px;
+} */
+
+.homeHero {
+    background-image: url('/assets/HomeHeroBg.jpg');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center center;
+    height: 500px;
+}

@@ -1,0 +1,27 @@
+.form {
+    background: #f5f8e3;
+    background: radial-gradient(circle, rgba(231, 238, 174, 0.07) 0%, rgb(225, 249, 244) 100%);
+}
+
+.aiGnt {
+    transition: all .2s ease-in;
+}
+
+.aiGnt:hover {
+    background-color: aqua !important;
+    font-weight: bold;
+    border: none;
+    outline: none;
+}
+
+@media screen and (max-width:576px) {
+    .form {
+        width: 100% !important;
+    }
+}
+
+@media screen and (max-width:768px) {
+    .form {
+        width: 100% !important;
+    }
+}
