@@ -1,6 +1,5 @@
 // PackageSidebar.jsx
 import React, { useEffect } from "react";
-import "./destinationSidebar.css";
 import { useFromcityData } from "./FromcityContext";
 import AOS from "aos";
 
