@@ -13,79 +13,69 @@ const PackagesData = () => {
   const [feedback, setFeedback] = useState({});
   const [rangeValue, setRangeValue] = useState(3000);
   const [duration, setDuration] = useState(2);
-  const Navigate=useNavigate()
+
+  // 🔥 PER-BUTTON LOADING STATE
+  const [loadingType, setLoadingType] = useState(null);
+
+  const [showLoginPopup, setShowLoginPopup] = useState(false);
+
+  const navigate = useNavigate();
   const { Fromcity } = useFromcityData();
   const { destination } = useDestinationData();
   const { setPackage } = usePackageData();
+  const { user } = useTravelCost();
 
   const data = packageData[destination] || {};
   const { destinationTypes = [] } = data;
 
-  const { user } = useTravelCost();
-const [showLoginPopup, setShowLoginPopup] = useState(false);
+  /* ---------------- INIT ---------------- */
 
-
-  // ✅ Safely load favorites after client-side hydration
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("favoritePackageTypes");
-      if (stored) setFavorites(JSON.parse(stored));
-    }
+    const stored = localStorage.getItem("favoritePackageTypes");
+    if (stored) setFavorites(JSON.parse(stored));
   }, []);
 
-  // ✅ Initialize AOS animation once
   useEffect(() => {
     AOS.init({ duration: 1000, once: true });
-    AOS.refresh();
   }, []);
 
-  // ✅ Initialize feedback data safely (runs only client-side)
   useEffect(() => {
-    if (destinationTypes.length && typeof window !== "undefined") {
-      const stored = localStorage.getItem("destinationFeedback");
-      const existing = stored ? JSON.parse(stored) : {};
-      const updated = { ...existing };
+    if (!destinationTypes.length) return;
 
-      destinationTypes.forEach((ele) => {
-        if (!updated[ele.type]) {
-          updated[ele.type] = {
-            baseLikes: Math.floor(Math.random() * 500) + 100,
-            baseDislikes: Math.floor(Math.random() * 300) + 50,
-            liked: false,
-            disliked: false,
-          };
-        }
-      });
+    const stored = localStorage.getItem("destinationFeedback");
+    const existing = stored ? JSON.parse(stored) : {};
+    const updated = { ...existing };
 
-      setFeedback(updated);
-      localStorage.setItem("destinationFeedback", JSON.stringify(updated));
-    }
+    destinationTypes.forEach((ele) => {
+      if (!updated[ele.type]) {
+        updated[ele.type] = {
+          baseLikes: Math.floor(Math.random() * 500) + 100,
+          baseDislikes: Math.floor(Math.random() * 300) + 50,
+          liked: false,
+          disliked: false,
+        };
+      }
+    });
+
+    setFeedback(updated);
+    localStorage.setItem("destinationFeedback", JSON.stringify(updated));
   }, [destinationTypes]);
 
-  // ✅ Backend call to get recommendations
+  /* ---------------- GET PACKAGE ---------------- */
+
   const getPackage = async (ele) => {
+    setLoadingType(ele.type); // ✅ only this button loads
+
     const enrichedPackage = {
       ...ele,
       fromCity: Fromcity,
       toCity: destination,
       budget: rangeValue,
-      duration: duration,
+      duration,
     };
-
-    console.log("Sending enrichedPackage:", enrichedPackage);
 
     setPackage(enrichedPackage);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("lastPackage", JSON.stringify(enrichedPackage));
-    }
-
-    const payload = {
-      fromCity: enrichedPackage.fromCity,
-      toCity: enrichedPackage.toCity,
-      type: enrichedPackage.type,
-      duration: enrichedPackage.duration,
-      budget: enrichedPackage.budget,
-    };
+    localStorage.setItem("lastPackage", JSON.stringify(enrichedPackage));
 
     try {
       const response = await fetch(
@@ -93,116 +83,63 @@ const [showLoginPopup, setShowLoginPopup] = useState(false);
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            fromCity: Fromcity,
+            toCity: destination,
+            type: ele.type,
+            duration,
+            budget: rangeValue,
+          }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error("Backend error");
 
       const result = await response.json();
-      console.log("Response from backend:", result);
 
       const finalPackage = {
         ...enrichedPackage,
-        recommendations: Array.isArray(result.data?.recommendations)
-          ? result.data.recommendations
-          : [],
+        recommendations: result?.data?.recommendations || [],
       };
 
       setPackage(finalPackage);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("lastPackage", JSON.stringify(finalPackage));
-        localStorage.setItem("showPackagesLink", "true");
-        window.dispatchEvent(new Event("storage")); // trigger Navbar update immediately
+      localStorage.setItem("lastPackage", JSON.stringify(finalPackage));
+      localStorage.setItem("showPackagesLink", "true");
+      window.dispatchEvent(new Event("storage"));
 
-      }
-
-      alert(`Recommendations received for ${destination}!`);
-      Navigate("/packages")
-    } catch (error) {
-      console.error("Error sending data:", error);
-      alert("Failed to send data to backend. Check console for details.");
+      navigate("/packages");
+    } catch (err) {
+      alert("Server is waking up. Please try again.");
+      console.error(err);
+    } finally {
+      setLoadingType(null); // ✅ stop loading
     }
   };
 
-  // ✅ Like / Dislike / Favorite Logic (all SSR-safe)
-  const toggleLike = (type) => {
-    const current = feedback[type] || {
-      baseLikes: Math.floor(Math.random() * 500) + 100,
-      baseDislikes: Math.floor(Math.random() * 300) + 50,
-      liked: false,
-      disliked: false,
-    };
-
-    const updated = {
-      ...feedback,
-      [type]: {
-        ...current,
-        liked: !current.liked,
-        disliked: current.liked ? current.disliked : false,
-      },
-    };
-
-    setFeedback(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("destinationFeedback", JSON.stringify(updated));
-    }
-  };
-
-  const toggleDislike = (type) => {
-    const current = feedback[type] || {
-      baseLikes: Math.floor(Math.random() * 500) + 100,
-      baseDislikes: Math.floor(Math.random() * 300) + 50,
-      liked: false,
-      disliked: false,
-    };
-
-    const updated = {
-      ...feedback,
-      [type]: {
-        ...current,
-        disliked: !current.disliked,
-        liked: current.disliked ? current.liked : false,
-      },
-    };
-
-    setFeedback(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("destinationFeedback", JSON.stringify(updated));
-    }
-  };
+  /* ---------------- FAVORITE ---------------- */
 
   const toggleFavorite = (destination, type) => {
-  // ✅ Check if user is logged in
-  if (!user) {
-    setShowLoginPopup(true);
-    return; // stop further execution
-  }
+    if (!user) {
+      setShowLoginPopup(true);
+      return;
+    }
 
-  const key = `${destination}_${type}`;
-  let updatedFavorites;
+    const key = `${destination}_${type}`;
+    const updatedFavorites = favorites.includes(key)
+      ? favorites.filter((f) => f !== key)
+      : [...favorites, key];
 
-  if (favorites.includes(key)) {
-    updatedFavorites = favorites.filter((fav) => fav !== key);
-  } else {
-    updatedFavorites = [...favorites, key];
-  }
+    setFavorites(updatedFavorites);
+    localStorage.setItem(
+      "favoritePackageTypes",
+      JSON.stringify(updatedFavorites)
+    );
+  };
 
-  setFavorites(updatedFavorites);
-  localStorage.setItem(
-    "favoritePackageTypes",
-    JSON.stringify(updatedFavorites)
-  );
-};
+  /* ---------------- UI ---------------- */
 
-  useEffect(() => {
-      AOS.init({ duration: 1000, once: true });
-      AOS.refresh();
-    }, []);
   return (
-    <div className="container-fluid my-4" style={{ position: "relative" }}>
+    <div className="container-fluid my-4 position-relative">
       <div className="container">
         <h5>Enter Duration</h5>
         <input
@@ -212,6 +149,7 @@ const [showLoginPopup, setShowLoginPopup] = useState(false);
           min={2}
           onChange={(e) => setDuration(e.target.value)}
         />
+
         <h5 className="text-center">Enter Budget</h5>
         <input
           type="range"
@@ -219,56 +157,53 @@ const [showLoginPopup, setShowLoginPopup] = useState(false);
           min={3000}
           max={100000}
           value={rangeValue}
-          id="budgetRange"
           onChange={(e) => setRangeValue(Number(e.target.value))}
         />
-        <output htmlFor="range4" id="rangeValue" className="d-block fw-medium">
-          {rangeValue}
-        </output>
+        <div className="fw-medium">{rangeValue}</div>
 
         <div className="row">
           {destinationTypes.map((ele, i) => {
-            const imagePath = `/assets1/${destination.replaceAll(" ", "")}_${ele.type
-              .toLowerCase()
-              .replaceAll(" ", "")}.jpg`;
-
-            const typeFeedback = feedback[ele.type] || {};
-            const totalLikes =
-              (typeFeedback.baseLikes || 0) + (typeFeedback.liked ? 1 : 0);
-            const totalDislikes =
-              (typeFeedback.baseDislikes || 0) +
-              (typeFeedback.disliked ? 1 : 0);
             const favKey = `${destination}_${ele.type}`;
-            
+            const imagePath = `/assets1/${destination.replaceAll(
+              " ",
+              ""
+            )}_${ele.type.toLowerCase().replaceAll(" ", "")}.jpg`;
+
             return (
-              <div
-                className="col-12 col-sm-12 col-md-6 col-lg-4 py-3"
-                key={i}
-                data-aos="fade-up"
-              >
-                <div className="card shadow-sm h-100">
+              <div key={i} className="col-lg-4 col-md-6 py-3" data-aos="fade-up">
+                <div className="card shadow h-100">
                   <img
                     src={imagePath}
                     className="card-img-top"
                     style={{ height: "300px", objectFit: "cover" }}
-                    alt={`${destination} ${ele.type}`}
+                    alt={ele.type}
                   />
 
                   <div className="card-body">
-                    <h5 className="card-title">{ele.type}</h5>
-                    <p className="card-text">{ele.description}</p>
+                    <h5>{ele.type}</h5>
+                    <p>{ele.description}</p>
 
                     <button
-                      className="btn btn-primary"
+                      className="btn btn-primary w-100"
+                      disabled={loadingType === ele.type}
                       onClick={() => getPackage(ele)}
                     >
-                      Get Recommendations
+                      {loadingType === ele.type ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2"></span>
+                          Fetching recommendations...
+                        </>
+                      ) : (
+                        "Get Recommendations"
+                      )}
                     </button>
 
-                    <div className="my-3">
+                    <div className="text-center mt-3">
                       <button
                         className="btn"
-                        onClick={() => toggleFavorite(destination, ele.type)}
+                        onClick={() =>
+                          toggleFavorite(destination, ele.type)
+                        }
                       >
                         <i
                           className={`bi ${
@@ -278,76 +213,32 @@ const [showLoginPopup, setShowLoginPopup] = useState(false);
                           }`}
                         ></i>
                       </button>
-
-                      <button
-                        className="btn"
-                        onClick={() => toggleLike(ele.type)}
-                        style={{
-                          backgroundColor: typeFeedback.liked ? "green" : "",
-                          color: typeFeedback.liked ? "white" : "",
-                        }}
-                      >
-                        👍 {totalLikes}
-                      </button>
-
-                      <button
-                        className="btn"
-                        onClick={() => toggleDislike(ele.type)}
-                        style={{
-                          backgroundColor: typeFeedback.disliked ? "red" : "",
-                          color: typeFeedback.disliked ? "white" : "",
-                        }}
-                      >
-                        👎 {totalDislikes}
-                      </button>
                     </div>
+
+                    {loadingType === ele.type && (
+                      <p className="text-muted text-center mt-2">
+                        Waking up server ⏳ Please wait
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
             );
           })}
-          
         </div>
-        
       </div>
+
+      {/* LOGIN POPUP */}
       {showLoginPopup && (
-  <div
-    onClick={(e) => {
-      if (e.target.classList.contains("login-overlay")) {
-        setShowLoginPopup(false);
-      }
-    }}
-    className="login-overlay"
-    style={{
-      position: "absolute",
-      top: 0,
-      left: 0,
-      width: "100%",
-      height: "100%",
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      zIndex: 9999,
-      animation: "fadeIn 0.3s ease",
-    }}
-  >
-    <div
-      style={{
-        backgroundColor: "#fff",
-        borderRadius: "12px",
-        width: "420px",
-        boxShadow: "0 4px 25px rgba(0,0,0,0.2)",
-        padding: "30px 40px",
-        position: "relative",
-        animation: "popIn 0.3s ease",
-      }}
-    >
-      <h5 className="text-center mb-3">Please login to save favourites ❤️</h5>
-      <Login onSuccess={() => setShowLoginPopup(false)} />
-    </div>
-  </div>
-)}
+        <div className="login-overlay">
+          <div className="login-box">
+            <h5 className="text-center mb-3">
+              Please login to save favourites ❤️
+            </h5>
+            <Login onSuccess={() => setShowLoginPopup(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
